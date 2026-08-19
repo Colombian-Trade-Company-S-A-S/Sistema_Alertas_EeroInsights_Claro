@@ -40,8 +40,9 @@
     "nickname": ""
   },
   "21832282": {
-    "label": "",
-    "nickname": ""
+    "label": "Cliente Premium",
+    "nickname": "47607618",
+    "customer_account": "47607618"
   },
   "22683141": {
     "label": "",
@@ -53,7 +54,8 @@
   },
   "21813619": {
     "label": "",
-    "nickname": "Aliso 72"
+    "nickname": "Aliso 72",
+    "customer_account": "47558225"
   },
   "19427770": {
     "label": "",
@@ -85,7 +87,8 @@
   },
   "21931792": {
     "label": "",
-    "nickname": ""
+    "nickname": "",
+    "customer_account": "48365851"
   },
   "17170284": {
     "label": "",
@@ -101,7 +104,8 @@
   },
   "22525143": {
     "label": "",
-    "nickname": ""
+    "nickname": "",
+    "customer_account": "46753884"
   },
   "16369130": {
     "label": "C123456",

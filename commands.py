@@ -14,18 +14,30 @@ COT = timezone(timedelta(hours=-5))
 BUDGET_ESTADO = 3800
 
 
+def _ids_incidencia(nid):
+    """Linea de identificadores: Cuenta Claro (customer_account) + Identificador de
+    la casa (Home Identifier) cuando existan, y siempre el ID de eero."""
+    info = network_labels.get_full(nid)
+    partes = []
+    if info["customer_account"]:
+        partes.append(f"Cuenta Claro: {info['customer_account']}")
+    if info["label"]:
+        partes.append(f"Casa: {info['label']}")
+    partes.append(f"ID eero: {nid}")
+    return " · ".join(partes)
+
+
 def _bloque_incidencia(nid, name, criticidad):
     """Bloque de detalle de una incidencia para /estado: cliente, IDs (cuenta
-    Claro cuando exista + ID de eero), criticidad y enlace directo a Insight."""
+    Claro + identificador de la casa + ID de eero), criticidad y enlace a Insight."""
     nid = str(nid)
-    label, nick = network_labels.get(nid)
+    info = network_labels.get_full(nid)
     cliente = name or f"Red {nid}"
-    if nick:
-        cliente = f"{cliente} ({nick})"
-    ids = f"Cuenta Claro: {label} · ID eero: {nid}" if label else f"ID eero: {nid}"
+    if info["nickname"]:
+        cliente = f"{cliente} ({info['nickname']})"
     url = config.INSIGHT_URL_TEMPLATE.format(network_id=nid)
     return (f"• *{cliente}*\n"
-            f"  {ids}\n"
+            f"  {_ids_incidencia(nid)}\n"
             f"  Criticidad: {criticidad}\n"
             f"  🔗 {url}")
 
@@ -183,7 +195,8 @@ def sin_solucionar_text(store):
         name = r["name"] or f"Red {r['item_id']}"
         tipo = "Caida" if r["kind"] == "outage" else "No saludable"
         partes.append(
-            f"• *{name}* ({r['item_id']}) · {tipo}\n"
+            f"• *{name}* · {tipo}\n"
+            f"  {_ids_incidencia(r['item_id'])}\n"
             f"  Lleva: {_dur(r['first_alert'], now)} · Avisos: {r['alert_count']}\n"
             f"  {r['detalle'] or '-'}"
         )

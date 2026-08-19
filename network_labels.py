@@ -49,6 +49,18 @@ def get(network_id):
     return info.get("label", "") or "", info.get("nickname", "") or ""
 
 
+def get_full(network_id):
+    """Devuelve dict {label, nickname, customer_account} de una red (strings vacios
+    si no hay dato). 'label' = identificador de la casa (Home Identifier);
+    'customer_account' = identificador de cuenta de cliente (partner_account_id)."""
+    info = _MAP.get(str(network_id), {})
+    return {
+        "label": info.get("label", "") or "",
+        "nickname": info.get("nickname", "") or "",
+        "customer_account": info.get("customer_account", "") or "",
+    }
+
+
 def html_lines(network_id):
     """Lineas HTML de nickname/label para el mensaje (vacio si no hay dato)."""
     label, nick = get(network_id)

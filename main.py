@@ -97,17 +97,11 @@ def build():
         api_version=config.WA_API_VERSION, dry_run=config.DRY_RUN,
     )
 
-    def destinatarios():
-        """Suscriptores activos de la tabla; si no hay DB o esta vacia, fallback."""
-        if subs is not None:
-            activos = subs.active_numbers()
-            if activos:
-                return activos
-        return config.WA_RECIPIENTS
-
     def _mk_collector():
+        # HIBRIDO: el push automatico va SOLO a ALERTAS_PUSH_NUMBERS (max 2).
+        # La consulta por menu la maneja el webhook y funciona para todos.
         return Collector(
-            wa, destinatarios,
+            wa, config.ALERTAS_PUSH_NUMBERS,
             config.WA_TEMPLATE_INDIVIDUAL, config.WA_TEMPLATE_INDIVIDUAL_LANG,
             config.WA_TEMPLATE_CONSOL, config.WA_TEMPLATE_CONSOL_LANG,
             budget=config.WA_BODY_BUDGET, max_count=config.WA_BATCH_MAX,
@@ -185,11 +179,16 @@ def main():
         config.POLL_MINUTES, config.RENOTIFY_MINUTES, config.UNHEALTHY_REPORT_HOUR,
         config.DRY_RUN, activos, len(config.EXCLUDED_NETWORK_IDS),
     )
-    if config.ALERTAS_PUSH_ENABLED:
-        log.info("ENVIO AUTOMATICO ACTIVADO: el bot envia alertas/renotif/reporte por Meta (se factura).")
+    if config.ALERTAS_PUSH_TRUNCADO:
+        log.warning("ALERTAS_PUSH_NUMBERS tiene mas de 2 numeros; se usan solo los 2 primeros.")
+    if config.ALERTAS_PUSH_ENABLED and config.ALERTAS_PUSH_NUMBERS:
+        log.info("MODO HIBRIDO: push automatico a %d numero(s): %s. Los demas solo consultan por el menu.",
+                 len(config.ALERTAS_PUSH_NUMBERS), ", ".join(config.ALERTAS_PUSH_NUMBERS))
+    elif config.ALERTAS_PUSH_ENABLED:
+        log.warning("ALERTAS_PUSH_ENABLED=true pero ALERTAS_PUSH_NUMBERS esta VACIO: nadie recibe push. "
+                    "Configura hasta 2 numeros para reactivarlo.")
     else:
-        log.warning("ENVIO AUTOMATICO DESACTIVADO (ALERTAS_PUSH_ENABLED=false): modo CONSULTA. "
-                    "El bot NO envia nada solo; el equipo consulta por el menu (opciones 1 y 2).")
+        log.warning("MODO CONSULTA (ALERTAS_PUSH_ENABLED=false): nadie recibe push; todos consultan por el menu.")
     if config.EXCLUDED_NETWORK_IDS:
         log.info("Redes de prueba excluidas: %s", ", ".join(sorted(config.EXCLUDED_NETWORK_IDS)))
 

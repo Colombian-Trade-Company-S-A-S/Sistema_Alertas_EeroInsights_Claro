@@ -24,9 +24,9 @@ def _digitos(numero):
 def create_app(store, wa, subs=None):
     app = Flask(__name__)
 
-    # Autogestion: cualquiera puede escribir para suscribirse/darse de baja o
-    # consultar el estado. La lista de destinatarios la controla la tabla, no
-    # una lista blanca aqui.
+    # Consulta abierta: cualquiera que escriba puede usar el menu (opciones 1-6),
+    # este suscrito o no. El PUSH automatico (modelo hibrido) va SOLO a los numeros
+    # de ALERTAS_PUSH_NUMBERS; esto de aqui es la via de CONSULTA para todos.
 
     @app.get("/")
     def health():

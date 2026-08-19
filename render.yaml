@@ -15,10 +15,14 @@ services:
         value: /var/data/alertas.db
       - key: DRY_RUN
         value: "false"
-      # Envio automatico a Meta. false = modo consulta (no factura); el equipo
-      # consulta por el menu. Poner "true" cuando haya presupuesto aprobado.
+      # Modelo hibrido: true = los numeros de ALERTAS_PUSH_NUMBERS reciben push
+      # automatico; los demas solo consultan por el menu. false = nadie recibe push.
       - key: ALERTAS_PUSH_ENABLED
-        value: "false"
+        value: "true"
+      # Hasta 2 numeros (con indicativo, coma-separados) que reciben el push.
+      # Se administra desde el panel de Render (Environment). Vacio = nadie recibe push.
+      - key: ALERTAS_PUSH_NUMBERS
+        sync: false
       # Hora local (Colombia) del reporte diario de redes no saludables.
       - key: UNHEALTHY_REPORT_HOUR
         value: "9"

@@ -80,14 +80,20 @@ WA_VERIFY_TOKEN = _get("WA_VERIFY_TOKEN", "cambia_esta_palabra")
 WA_BATCH_MAX = int(_get("WA_BATCH_MAX", "10"))
 WA_BODY_BUDGET = int(_get("WA_BODY_BUDGET", "900"))
 
-# --- Envio automatico (proactivo) a Meta ---
+# --- Envio automatico (proactivo) a Meta — MODELO HIBRIDO ---
 # Meta COBRA por los mensajes proactivos (plantillas: alertas, re-notificaciones,
-# reporte diario, cierres). Cuando alguien le ESCRIBE al bot se abre una ventana
-# de 24h de respuesta gratis (texto libre). Sin presupuesto aprobado, esto va en
-# FALSE: el sistema sigue sondeando y actualizando su estado, pero NO envia nada
-# solo; el equipo consulta las alertas por el menu (opciones 1 y 2). Para reactivar
-# el envio automatico cuando haya presupuesto: ALERTAS_PUSH_ENABLED=true.
+# reporte diario, cierres). Cualquiera que le ESCRIBA al bot puede CONSULTAR gratis
+# por el menu (opciones 1 y 2). El push automatico va SOLO a los numeros de
+# ALERTAS_PUSH_NUMBERS (max 2), para controlar el costo:
+#  - ALERTAS_PUSH_ENABLED=false -> nadie recibe push; todos solo consultan.
+#  - ALERTAS_PUSH_ENABLED=true  -> los numeros de ALERTAS_PUSH_NUMBERS reciben
+#    alertas/renotif/reporte automaticos; los demas siguen solo consultando.
 ALERTAS_PUSH_ENABLED = _get("ALERTAS_PUSH_ENABLED", "false").lower() in ("1", "true", "yes", "si")
+# Hasta 2 numeros (coma-separados, con indicativo) que reciben el push automatico.
+# Si hay mas de 2, se toman solo los 2 primeros. Vacio = nadie recibe push.
+_push_raw = _list("ALERTAS_PUSH_NUMBERS")
+ALERTAS_PUSH_NUMBERS = _push_raw[:2]
+ALERTAS_PUSH_TRUNCADO = len(_push_raw) > 2  # se pasaron mas de 2 (se recorto)
 
 # --- Reporte diario de redes no saludables ---
 # Las redes no saludables NO se notifican en tiempo real: son un reporte que solo

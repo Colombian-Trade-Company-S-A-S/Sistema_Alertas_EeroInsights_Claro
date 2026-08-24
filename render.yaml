@@ -15,12 +15,15 @@ services:
         value: /var/data/alertas.db
       - key: DRY_RUN
         value: "false"
-      # Modelo hibrido: true = los numeros de ALERTAS_PUSH_NUMBERS reciben push
-      # automatico; los demas solo consultan por el menu. false = nadie recibe push.
+      # Master switch del push automatico. false = nadie recibe push (solo consulta).
       - key: ALERTAS_PUSH_ENABLED
         value: "true"
-      # Hasta 2 numeros (con indicativo, coma-separados) que reciben el push.
-      # Se administra desde el panel de Render (Environment). Vacio = nadie recibe push.
+      # Modo: true = HIBRIDO (solo autorizados de ALERTAS_PUSH_NUMBERS, max 2);
+      # false = COMPLETO (push a TODOS los numeros de alta).
+      - key: ALERTAS_MODO_HIBRIDO
+        value: "true"
+      # Hasta 2 numeros autorizados en modo hibrido (con indicativo, coma-separados).
+      # Se administra desde el panel de Render (Environment).
       - key: ALERTAS_PUSH_NUMBERS
         sync: false
       # Hora local (Colombia) del reporte diario de redes no saludables.

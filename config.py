@@ -89,11 +89,16 @@ WA_BODY_BUDGET = int(_get("WA_BODY_BUDGET", "900"))
 #  - ALERTAS_PUSH_ENABLED=true  -> los numeros de ALERTAS_PUSH_NUMBERS reciben
 #    alertas/renotif/reporte automaticos; los demas siguen solo consultando.
 ALERTAS_PUSH_ENABLED = _get("ALERTAS_PUSH_ENABLED", "false").lower() in ("1", "true", "yes", "si")
-# Hasta 2 numeros (coma-separados, con indicativo) que reciben el push automatico.
-# Si hay mas de 2, se toman solo los 2 primeros. Vacio = nadie recibe push.
+# Hasta 2 numeros (coma-separados, con indicativo) que reciben el push automatico
+# EN MODO HIBRIDO. Si hay mas de 2, se toman solo los 2 primeros.
 _push_raw = _list("ALERTAS_PUSH_NUMBERS")
 ALERTAS_PUSH_NUMBERS = _push_raw[:2]
 ALERTAS_PUSH_TRUNCADO = len(_push_raw) > 2  # se pasaron mas de 2 (se recorto)
+# Cuando el push esta activado, este interruptor decide A QUIEN va:
+#  - true (HIBRIDO): push SOLO a ALERTAS_PUSH_NUMBERS (autorizados, max 2).
+#  - false (COMPLETO): push a TODOS los numeros de alta (tabla de suscriptores;
+#    si no hay DB o esta vacia, WA_RECIPIENTS). Sin tope.
+ALERTAS_MODO_HIBRIDO = _get("ALERTAS_MODO_HIBRIDO", "true").lower() in ("1", "true", "yes", "si")
 
 # --- Reporte diario de redes no saludables ---
 # Las redes no saludables NO se notifican en tiempo real: son un reporte que solo

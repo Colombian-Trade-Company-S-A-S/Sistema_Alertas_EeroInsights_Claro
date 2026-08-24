@@ -26,6 +26,9 @@ services:
       # Se administra desde el panel de Render (Environment).
       - key: ALERTAS_PUSH_NUMBERS
         sync: false
+      # Bot exclusivo: true = solo responde a numeros de alta; false = a cualquiera.
+      - key: BOT_SOLO_SUSCRITOS
+        value: "true"
       # Hora local (Colombia) del reporte diario de redes no saludables.
       - key: UNHEALTHY_REPORT_HOUR
         value: "9"

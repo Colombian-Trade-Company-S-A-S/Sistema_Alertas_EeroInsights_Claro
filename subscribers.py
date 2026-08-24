@@ -158,3 +158,20 @@ class SubscriberStore:
     def count_active(self):
         nums = self.active_numbers()
         return len(nums) if nums is not None else 0
+
+    def is_active(self, numero):
+        """¿El numero esta de alta y activo? True / False, o None si la DB falla."""
+        num = normalizar(numero)
+        if not num:
+            return False
+        conn = self._connect()
+        try:
+            with conn, conn.cursor() as cur:
+                cur.execute(f"SELECT activo FROM {self.tabla} WHERE numero=%s", (num,))
+                row = cur.fetchone()
+                return bool(row and row[0])
+        except psycopg2.Error as e:
+            log.error("Error al verificar suscripcion de %s: %s", num, e)
+            return None
+        finally:
+            conn.close()

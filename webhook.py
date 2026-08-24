@@ -21,6 +21,21 @@ def _digitos(numero):
     return re.sub(r"\D", "", numero or "")
 
 
+def _autorizado(numero, subs):
+    """True si el numero puede usar el bot (esta de ALTA). Con BOT_SOLO_SUSCRITOS
+    apagado, todos autorizados. Si la DB no responde, se autoriza (no bloquear)."""
+    if not config.BOT_SOLO_SUSCRITOS:
+        return True
+    if subs is not None:
+        activo = subs.is_active(numero)
+        if activo is None:  # DB no responde -> no bloquear a los reales
+            log.warning("No pude verificar suscripcion de %s (DB); se responde igual.", numero)
+            return True
+        return activo
+    # Sin DB: autorizados = WA_RECIPIENTS (normalizados a solo digitos).
+    return numero in {_digitos(n) for n in config.WA_RECIPIENTS}
+
+
 def create_app(store, wa, subs=None):
     app = Flask(__name__)
 
@@ -80,10 +95,13 @@ def create_app(store, wa, subs=None):
                             continue
                         frm = msg.get("from")
                         texto = (msg.get("text") or {}).get("body", "")
+                        sender = _digitos(frm)
+                        # Bot exclusivo: si el numero no esta de alta, no se responde.
+                        if not _autorizado(sender, subs):
+                            log.info("Mensaje de %s IGNORADO (no esta de alta).", frm)
+                            continue
                         log.info("Comando de %s: %r", frm, texto)
-                        respuesta = commands.dispatch(
-                            texto, store, subs=subs, sender=_digitos(frm)
-                        )
+                        respuesta = commands.dispatch(texto, store, subs=subs, sender=sender)
                         wa.send_text(frm, respuesta)
         except Exception:  # noqa: BLE001
             log.exception("Error procesando webhook.")

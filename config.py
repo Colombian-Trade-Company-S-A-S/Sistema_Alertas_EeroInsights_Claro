@@ -63,6 +63,13 @@ WA_TEMPLATE_CONSOL_LANG = _get("WA_TEMPLATE_CONSOL_LANG", "es")
 # (autogestion por WhatsApp). Se usa si no hay DATABASE_URL o la tabla esta vacia.
 WA_RECIPIENTS = _list("WA_RECIPIENTS")
 
+# Bot EXCLUSIVO: si es true, el bot solo responde a numeros que esten de ALTA
+# (suscritos y activos); a los no suscritos o dados de baja los ignora (sin
+# respuesta). Nuevos numeros los agrega un numero YA de alta con "4 <numero>"
+# (o via WA_RECIPIENTS al desplegar). false = responde a cualquiera (comportamiento
+# antiguo). Si la DB no responde, por seguridad de UX se responde igual (no bloquea).
+BOT_SOLO_SUSCRITOS = _get("BOT_SOLO_SUSCRITOS", "true").lower() in ("1", "true", "yes", "si")
+
 # --- Receptores de alertas (Postgres, autogestion alta/baja por WhatsApp) ---
 # Cadena de conexion de Render (External Database URL). Si falta, se usa
 # WA_RECIPIENTS como antes.

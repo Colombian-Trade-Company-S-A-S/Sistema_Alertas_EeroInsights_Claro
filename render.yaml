@@ -29,7 +29,10 @@ services:
       # Bot exclusivo: true = solo responde a numeros de alta; false = a cualquiera.
       - key: BOT_SOLO_SUSCRITOS
         value: "true"
-      # Hora local (Colombia) del reporte diario de redes no saludables.
+      # v1: SOLO caidas. false = modulo de "no saludables" APAGADO (true para reactivar).
+      - key: UNHEALTHY_ENABLED
+        value: "false"
+      # Hora local (Colombia) del reporte diario de redes no saludables (si se reactiva).
       - key: UNHEALTHY_REPORT_HOUR
         value: "9"
       # Redes de prueba a excluir del monitoreo (IDs separados por coma).

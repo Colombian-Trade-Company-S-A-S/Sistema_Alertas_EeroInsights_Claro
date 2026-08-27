@@ -130,28 +130,29 @@ def _start_of_today_utc():
 
 
 def estado_text(store):
-    """Resumen de alertas: caidas (tiempo real) + no saludables (reporte del dia).
-    Cada incidencia con cliente, cuenta Claro + ID de eero, criticidad y enlace."""
+    """Resumen de alertas activas. Reporta las CAIDAS (interrupciones de red). Si el
+    modulo de no saludables esta activo (UNHEALTHY_ENABLED), tambien las muestra."""
     caidas = store.all_active("outage")
-    unhealthy = store.all_active("unhealthy")
+    mostrar_unhealthy = config.UNHEALTHY_ENABLED
+    unhealthy = store.all_active("unhealthy") if mostrar_unhealthy else []
     criticas = [r for r in unhealthy if r["ref"] == "CRITICAL"]
     no_criticas = [r for r in unhealthy if r["ref"] != "CRITICAL"]
 
     partes = [
         "🚨 *Alertas — incidencias activas*\n",
         f"🚨 *Caidas activas (tiempo real): {len(caidas)}*",
-        f"🩺 *No saludables (reporte del dia): {len(unhealthy)}*",
     ]
+    if mostrar_unhealthy:
+        partes.append(f"🩺 *No saludables (reporte del dia): {len(unhealthy)}*")
     if not caidas and not unhealthy:
         partes.append("\n_Sin novedades activas._ 🎉")
         return "\n".join(partes)
 
     # Secciones en orden; cada bloque se agrega mientras quepa en el presupuesto.
-    secciones = [
-        ("\n🚨 *Caidas:*", caidas, "🚨 Caida"),
-        (f"\n🔴 *No saludables criticas ({len(criticas)}):*", criticas, "🔴 Critica"),
-        (f"\n🟠 *No saludables NO criticas ({len(no_criticas)}):*", no_criticas, "🟠 No critica"),
-    ]
+    secciones = [("\n🚨 *Caidas:*", caidas, "🚨 Caida")]
+    if mostrar_unhealthy:
+        secciones.append((f"\n🔴 *No saludables criticas ({len(criticas)}):*", criticas, "🔴 Critica"))
+        secciones.append((f"\n🟠 *No saludables NO criticas ({len(no_criticas)}):*", no_criticas, "🟠 No critica"))
     omitidas = 0
     for titulo, rows, criticidad in secciones:
         if not rows:

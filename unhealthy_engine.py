@@ -4,8 +4,10 @@ TIEMPO REAL — `poll_once()` corre en el MISMO ciclo de las caidas y usa el MIS
 collector, asi que sus avisos llegan junto a los de interrupciones de red:
 - Solo las CRITICAS notifican: alerta individual (plantilla de 8 variables) la
   primera vez que la red es critica; re-notificacion cada `renotify_minutes` como
-  linea del consolidado; "Estado saludable" cuando sale de la lista.
-- Las NO criticas solo se rastrean (cuentan en el menu, no envian WhatsApp).
+  linea del consolidado; "Estado saludable" cuando sale de la lista o "Estado ya
+  no critica" si baja a NO critica.
+- Las NO criticas nunca envian WhatsApp. Con UNHEALTHY_SOLO_CRITICAS=true (default)
+  se ignoran por completo; con false se rastrean en silencio para el menu.
 
 DIARIO — `daily_report()` corre una vez al dia (job programado):
 - Agrega al collector las redes con problema (todas, o solo criticas segun config)
@@ -53,7 +55,8 @@ class UnhealthyEngine:
     KIND = "unhealthy"
 
     def __init__(self, eero, collector, store, insight_template,
-                 excluded=None, critical_only=False, renotify_minutes=10):
+                 excluded=None, critical_only=False, renotify_minutes=10,
+                 solo_criticas=True):
         self.eero = eero
         self.collector = collector
         self.store = store
@@ -64,6 +67,9 @@ class UnhealthyEngine:
         self.critical_only = critical_only
         # Tiempo real: cada cuanto se re-notifica una critica que sigue activa.
         self.renotify_minutes = renotify_minutes
+        # Tiempo real: True = las NO criticas se ignoran (ni se rastrean ni salen
+        # en el menu); False = se rastrean en silencio para el menu.
+        self.solo_criticas = solo_criticas
 
     def _net_name(self, network_id):
         return self.eero.network_info(network_id).get("name") or f"Red {network_id}"
@@ -105,6 +111,10 @@ class UnhealthyEngine:
         que escala de NO CRITICA a CRITICA recibe su alerta individual la primera
         vez que es critica, y las que venian del reporte diario (rastreadas con
         bump=False) tambien.
+
+        Con solo_criticas=True las NO criticas se ignoran por completo (no se
+        rastrean ni aparecen en el menu); si una critica baja a NO critica se cierra
+        con "Estado ya no critica".
         """
         log.info("Consultando redes no saludables (tiempo real)...")
         dry = getattr(self.collector, "dry_run", False)
@@ -116,27 +126,29 @@ class UnhealthyEngine:
             log.warning("Token fallo al consultar unhealthy (lo notifica el motor de caidas).")
             return
 
-        activos = {str(n["network_id"]): n for n in nets if not n.get("is_deleted")}
+        en_lista = {str(n["network_id"]): n for n in nets if not n.get("is_deleted")}
         if self.excluded:
-            antes = len(activos)
-            activos = {nid: n for nid, n in activos.items() if nid not in self.excluded}
-            if antes != len(activos):
-                log.info("No saludables: %d red(es) de prueba excluidas.", antes - len(activos))
-        criticas = sum(1 for n in activos.values() if n.get("highest_severity") == "CRITICAL")
-        log.info("Redes no saludables: %d (criticas: %d)", len(activos), criticas)
+            antes = len(en_lista)
+            en_lista = {nid: n for nid, n in en_lista.items() if nid not in self.excluded}
+            if antes != len(en_lista):
+                log.info("No saludables: %d red(es) de prueba excluidas.", antes - len(en_lista))
+        criticas = {nid: n for nid, n in en_lista.items()
+                    if n.get("highest_severity") == "CRITICAL"}
+        log.info("Redes no saludables: %d (criticas: %d)", len(en_lista), len(criticas))
+        activos = criticas if self.solo_criticas else en_lista
 
         for nid, net in activos.items():
             row = self.store.get(nid, kind=self.KIND)
             notificada = row is not None and row["alert_count"] > 0
             bump = False
-            if net.get("highest_severity") == "CRITICAL":
+            if nid in criticas:
                 if not notificada:
                     self.collector.send_individual(self._params_individual(net))
                     bump = True
                 elif self._should_renotify(row):
                     self.collector.add(self._conciso(net))
                     bump = True
-            # NO criticas (y criticas entre re-notificaciones): solo rastreo.
+            # NO criticas (si se rastrean) y criticas entre re-notificaciones.
             if not dry:
                 self.store.upsert_alert(
                     nid, net.get("highest_severity"), kind=self.KIND,
@@ -145,22 +157,20 @@ class UnhealthyEngine:
                 )
 
         for nid in self.store.all_ids(kind=self.KIND) - set(activos.keys()):
-            if nid in self.excluded:
-                # Red de prueba: se limpia en silencio, sin anunciar ni registrar.
+            row = self.store.get(nid, kind=self.KIND)
+            if nid in self.excluded or not (row and row["alert_count"] > 0):
+                # Red de prueba, o NO critica que nunca se aviso: se limpia en
+                # silencio (sin anunciar ni registrar en Soluciones).
                 if not dry:
                     self.store.remove(nid, kind=self.KIND)
                 continue
-            row = self.store.get(nid, kind=self.KIND)
-            name = (row["name"] if row and row["name"] else self._net_name(nid))
-            # Solo se anuncia el cierre si la red llego a notificarse (fue critica).
-            if row and row["alert_count"] > 0:
-                self.collector.add(f"{_con_etiqueta(nid, name)} ({nid}): Estado saludable")
+            name = row["name"] or self._net_name(nid)
+            # Sigue en la lista de eero pero ya no es critica, o salio de la lista.
+            estado = "ya no critica" if nid in en_lista else "saludable"
+            self.collector.add(f"{_con_etiqueta(nid, name)} ({nid}): Estado {estado}")
             if not dry:
                 self.store.record_resolution(
-                    self.KIND, nid, name,
-                    row["detalle"] if row else None,
-                    row["first_alert"] if row else None,
-                    row["alert_count"] if row else 0,
+                    self.KIND, nid, name, row["detalle"], row["first_alert"], row["alert_count"],
                 )
                 self.store.remove(nid, kind=self.KIND)
 

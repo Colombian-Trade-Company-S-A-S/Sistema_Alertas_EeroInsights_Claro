@@ -143,8 +143,11 @@ def estado_text(store):
         f"🚨 *Caidas activas (tiempo real): {len(caidas)}*",
     ]
     if mostrar_unhealthy:
-        origen = "tiempo real" if config.UNHEALTHY_TIEMPO_REAL else "reporte del dia"
-        partes.append(f"🩺 *No saludables ({origen}): {len(unhealthy)}*")
+        if config.UNHEALTHY_TIEMPO_REAL and config.UNHEALTHY_SOLO_CRITICAS:
+            partes.append(f"🔴 *No saludables criticas (tiempo real): {len(unhealthy)}*")
+        else:
+            origen = "tiempo real" if config.UNHEALTHY_TIEMPO_REAL else "reporte del dia"
+            partes.append(f"🩺 *No saludables ({origen}): {len(unhealthy)}*")
     if not caidas and not unhealthy:
         partes.append("\n_Sin novedades activas._ 🎉")
         return "\n".join(partes)

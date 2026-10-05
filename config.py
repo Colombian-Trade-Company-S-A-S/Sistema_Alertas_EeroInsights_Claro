@@ -113,10 +113,14 @@ UNHEALTHY_ENABLED = _get("UNHEALTHY_ENABLED", "true").lower() in ("1", "true", "
 #  - true (TIEMPO REAL): en el MISMO ciclo de las caidas (cada POLL_MINUTES) se
 #    notifican SOLO las CRITICAS: alerta individual al aparecer (o al escalar a
 #    critica), re-notificacion cada RENOTIFY_MINUTES dentro del MISMO consolidado de
-#    las caidas, y aviso "Estado saludable" al resolverse. Las NO criticas solo se
-#    rastrean (se consultan por el menu). No se envia el reporte diario.
+#    las caidas, y aviso "Estado saludable" al resolverse. Las NO criticas no se
+#    envian (ver UNHEALTHY_SOLO_CRITICAS). No se envia el reporte diario.
 #  - false (DIARIO): UN consolidado al dia a las UNHEALTHY_REPORT_HOUR (ver abajo).
 UNHEALTHY_TIEMPO_REAL = _get("UNHEALTHY_TIEMPO_REAL", "true").lower() in ("1", "true", "yes", "si")
+# Tiempo real: true (default) = las NO criticas se ignoran por completo (no se
+# rastrean ni aparecen en el menu). false = se rastrean en silencio y se ven en
+# las opciones 1 y 2 (igual nunca envian WhatsApp).
+UNHEALTHY_SOLO_CRITICAS = _get("UNHEALTHY_SOLO_CRITICAS", "true").lower() in ("1", "true", "yes", "si")
 # --- Reporte diario (solo si UNHEALTHY_TIEMPO_REAL=false) ---
 # Se envia UN consolidado por WhatsApp en la manana y se consultan con /estado el
 # resto del dia. (Las CAIDAS siguen en tiempo real.)

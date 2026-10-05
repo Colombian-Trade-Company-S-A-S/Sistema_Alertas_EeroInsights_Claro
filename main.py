@@ -137,6 +137,7 @@ def build():
         excluded=config.EXCLUDED_NETWORK_IDS,
         critical_only=config.UNHEALTHY_REPORT_CRITICAL_ONLY,
         renotify_minutes=config.RENOTIFY_MINUTES,
+        solo_criticas=config.UNHEALTHY_SOLO_CRITICAS,
     )
     return store, wa, collector, collector_diario, engine, unhealthy, subs
 

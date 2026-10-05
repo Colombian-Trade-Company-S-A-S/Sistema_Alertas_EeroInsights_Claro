@@ -1,13 +1,17 @@
-"""Motor de redes no saludables para WhatsApp: REPORTE DIARIO.
+"""Motor de redes no saludables para WhatsApp. Dos modos (config.UNHEALTHY_TIEMPO_REAL):
 
-Las redes no saludables son un reporte que solo cambia una vez al dia, asi que NO
-se notifican en tiempo real. `daily_report()` corre una vez al dia (job programado):
+TIEMPO REAL — `poll_once()` corre en el MISMO ciclo de las caidas y usa el MISMO
+collector, asi que sus avisos llegan junto a los de interrupciones de red:
+- Solo las CRITICAS notifican: alerta individual (plantilla de 8 variables) la
+  primera vez que la red es critica; re-notificacion cada `renotify_minutes` como
+  linea del consolidado; "Estado saludable" cuando sale de la lista.
+- Las NO criticas solo se rastrean (cuentan en el menu, no envian WhatsApp).
+
+DIARIO — `daily_report()` corre una vez al dia (job programado):
 - Agrega al collector las redes con problema (todas, o solo criticas segun config)
   para enviar UN mensaje consolidado.
 - Refresca el snapshot que consulta /estado (agrega/actualiza las actuales y marca
   como resueltas las que ya no aparecen).
-
-Las CAIDAS (AlertEngine) siguen notificando/re-notificando en tiempo real aparte.
 """
 import logging
 from datetime import datetime, timezone, timedelta
@@ -49,7 +53,7 @@ class UnhealthyEngine:
     KIND = "unhealthy"
 
     def __init__(self, eero, collector, store, insight_template,
-                 excluded=None, critical_only=False):
+                 excluded=None, critical_only=False, renotify_minutes=10):
         self.eero = eero
         self.collector = collector
         self.store = store
@@ -58,6 +62,8 @@ class UnhealthyEngine:
         self.excluded = set(excluded or ())
         # Si True, el reporte solo incluye criticas (las no criticas solo en /estado).
         self.critical_only = critical_only
+        # Tiempo real: cada cuanto se re-notifica una critica que sigue activa.
+        self.renotify_minutes = renotify_minutes
 
     def _net_name(self, network_id):
         return self.eero.network_info(network_id).get("name") or f"Red {network_id}"
@@ -72,6 +78,91 @@ class UnhealthyEngine:
         _, label = SEVERITY.get(net.get("highest_severity", ""), ("⚪", "?"))
         name = _con_etiqueta(nid, self._net_name(nid))
         return f"{name} ({nid}): Estado {label}"
+
+    def _should_renotify(self, row):
+        last = datetime.fromisoformat(row["last_alert"])
+        return (datetime.now(timezone.utc) - last).total_seconds() / 60 >= self.renotify_minutes
+
+    def _params_individual(self, net):
+        """Lista de 8 variables para la plantilla individual (misma de las caidas)."""
+        nid = str(net["network_id"])
+        _, label = SEVERITY.get(net.get("highest_severity", ""), ("⚪", "?"))
+        return [
+            f"Red NO SALUDABLE ({label})",                       # {{1}}
+            _con_etiqueta(nid, self._net_name(nid)),             # {{2}}
+            nid,                                                 # {{3}}
+            net.get("network_type") or "N/D",                    # {{4}}
+            self._alerts_text(net.get("alerts")),                # {{5}}
+            str(net.get("count", "N/D")),                        # {{6}}
+            _fmt_dt(net.get("last_occurrence")),                 # {{7}}
+            self.insight_template.format(network_id=nid),        # {{8}}
+        ]
+
+    def poll_once(self):
+        """Ciclo en TIEMPO REAL (junto a las caidas): notifica solo las CRITICAS.
+
+        'notificada' = ya se envio al menos un aviso (alert_count > 0). Asi una red
+        que escala de NO CRITICA a CRITICA recibe su alerta individual la primera
+        vez que es critica, y las que venian del reporte diario (rastreadas con
+        bump=False) tambien.
+        """
+        log.info("Consultando redes no saludables (tiempo real)...")
+        dry = getattr(self.collector, "dry_run", False)
+        try:
+            nets = self.eero.unhealthy_networks()
+        except EeroAuthError:
+            # El aviso de token lo da el motor de caidas. No se toca el store para
+            # no disparar falsos "saludable".
+            log.warning("Token fallo al consultar unhealthy (lo notifica el motor de caidas).")
+            return
+
+        activos = {str(n["network_id"]): n for n in nets if not n.get("is_deleted")}
+        if self.excluded:
+            antes = len(activos)
+            activos = {nid: n for nid, n in activos.items() if nid not in self.excluded}
+            if antes != len(activos):
+                log.info("No saludables: %d red(es) de prueba excluidas.", antes - len(activos))
+        criticas = sum(1 for n in activos.values() if n.get("highest_severity") == "CRITICAL")
+        log.info("Redes no saludables: %d (criticas: %d)", len(activos), criticas)
+
+        for nid, net in activos.items():
+            row = self.store.get(nid, kind=self.KIND)
+            notificada = row is not None and row["alert_count"] > 0
+            bump = False
+            if net.get("highest_severity") == "CRITICAL":
+                if not notificada:
+                    self.collector.send_individual(self._params_individual(net))
+                    bump = True
+                elif self._should_renotify(row):
+                    self.collector.add(self._conciso(net))
+                    bump = True
+            # NO criticas (y criticas entre re-notificaciones): solo rastreo.
+            if not dry:
+                self.store.upsert_alert(
+                    nid, net.get("highest_severity"), kind=self.KIND,
+                    detalle=self._alerts_text(net.get("alerts")),
+                    name=self._net_name(nid), bump=bump,
+                )
+
+        for nid in self.store.all_ids(kind=self.KIND) - set(activos.keys()):
+            if nid in self.excluded:
+                # Red de prueba: se limpia en silencio, sin anunciar ni registrar.
+                if not dry:
+                    self.store.remove(nid, kind=self.KIND)
+                continue
+            row = self.store.get(nid, kind=self.KIND)
+            name = (row["name"] if row and row["name"] else self._net_name(nid))
+            # Solo se anuncia el cierre si la red llego a notificarse (fue critica).
+            if row and row["alert_count"] > 0:
+                self.collector.add(f"{_con_etiqueta(nid, name)} ({nid}): Estado saludable")
+            if not dry:
+                self.store.record_resolution(
+                    self.KIND, nid, name,
+                    row["detalle"] if row else None,
+                    row["first_alert"] if row else None,
+                    row["alert_count"] if row else 0,
+                )
+                self.store.remove(nid, kind=self.KIND)
 
     def daily_report(self, send=True):
         """Genera el reporte diario y refresca el snapshot del store.

@@ -107,11 +107,19 @@ ALERTAS_PUSH_TRUNCADO = len(_push_raw) > 2  # se pasaron mas de 2 (se recorto)
 #    si no hay DB o esta vacia, WA_RECIPIENTS). Sin tope.
 ALERTAS_MODO_HIBRIDO = _get("ALERTAS_MODO_HIBRIDO", "true").lower() in ("1", "true", "yes", "si")
 
-# --- Reporte diario de redes no saludables ---
-# Las redes no saludables NO se notifican en tiempo real: son un reporte que solo
-# cambia una vez al dia. Se envia UN consolidado por WhatsApp en la manana y se
-# consultan con /estado el resto del dia. (Las CAIDAS si siguen en tiempo real.)
+# --- Redes no saludables (modulo "Redes con problemas") ---
 UNHEALTHY_ENABLED = _get("UNHEALTHY_ENABLED", "true").lower() in ("1", "true", "yes", "si")
+# Modo de notificacion de las no saludables:
+#  - true (TIEMPO REAL): en el MISMO ciclo de las caidas (cada POLL_MINUTES) se
+#    notifican SOLO las CRITICAS: alerta individual al aparecer (o al escalar a
+#    critica), re-notificacion cada RENOTIFY_MINUTES dentro del MISMO consolidado de
+#    las caidas, y aviso "Estado saludable" al resolverse. Las NO criticas solo se
+#    rastrean (se consultan por el menu). No se envia el reporte diario.
+#  - false (DIARIO): UN consolidado al dia a las UNHEALTHY_REPORT_HOUR (ver abajo).
+UNHEALTHY_TIEMPO_REAL = _get("UNHEALTHY_TIEMPO_REAL", "true").lower() in ("1", "true", "yes", "si")
+# --- Reporte diario (solo si UNHEALTHY_TIEMPO_REAL=false) ---
+# Se envia UN consolidado por WhatsApp en la manana y se consultan con /estado el
+# resto del dia. (Las CAIDAS siguen en tiempo real.)
 # Hora local (America/Bogota) del envio del reporte diario.
 UNHEALTHY_REPORT_HOUR = int(_get("UNHEALTHY_REPORT_HOUR", "9"))
 # Si es true, el reporte matutino incluye SOLO las criticas (las no criticas
